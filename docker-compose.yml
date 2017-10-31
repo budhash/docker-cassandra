@@ -1,0 +1,126 @@
+version: '3.3'
+services:
+    # DC-A -> Node 1
+    DC1N1:
+        build:
+              context: ./cassandra/${CASSANDRA_VER}
+              dockerfile: Dockerfile
+        image: cassandra:${CASSANDRA_VER}
+        # In case this is the first time starting up cassandra we need to ensure that all 
+        # nodes do not start up at the same time. Cassandra has a 2 minute rule 
+        # i.e. 2 minutes between each node boot up. This only needs to happen the first time 
+        # we bootup. Configuration below assumes if the Cassandra data directory is empty 
+        # it means that we are starting up for the first time.
+        command: bash -c 'if [ -z "$$(ls -A /var/lib/cassandra/)" ] ; then sleep 0; fi && /docker-entrypoint.sh cassandra -f'
+        networks:
+            - dcx-internal
+        volumes:
+            - ${VOLUME_MNT}/n1data:/var/lib/cassandra
+        environment:
+            - CASSANDRA_CLUSTER_NAME=${CLUSTER_NAME}
+            - CASSANDRA_SEEDS=DC1N1
+            - MAX_HEAP_SIZE=${MAX_HEAP_SIZE}  
+            - HEAP_NEWSIZE=${HEAP_NEWSIZE}
+        ports:
+            - 7000
+            - 7001
+            - 7199
+            - 9042
+            - 9160
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000    
+        deploy:
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+            window: 120s
+    # DC-A -> Node 2
+    DC1N2:
+        build:
+              context: ./cassandra/${CASSANDRA_VER}
+              dockerfile: Dockerfile
+        image: cassandra:${CASSANDRA_VER}
+        command: bash -c 'if [ -z "$$(ls -A /var/lib/cassandra/)" ] ; then sleep 60; fi && /docker-entrypoint.sh cassandra -f'
+        networks:
+            - dcx-internal
+        volumes:
+            - ${VOLUME_MNT}/n2data:/var/lib/cassandra
+        environment:
+            - CASSANDRA_CLUSTER_NAME=${CLUSTER_NAME}
+            - CASSANDRA_SEEDS=DC1N1
+            - MAX_HEAP_SIZE=${MAX_HEAP_SIZE} 
+            - HEAP_NEWSIZE=${HEAP_NEWSIZE}
+        depends_on:
+              - DC1N1
+        ports:
+            - 7000
+            - 7001
+            - 7199
+            - 9042
+            - 9160
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000    
+        deploy:
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+            window: 120s
+    # DC-A -> Node 3
+    DC1N3:
+        build:
+              context: ./cassandra/${CASSANDRA_VER}
+              dockerfile: Dockerfile
+        image: cassandra:${CASSANDRA_VER}
+        command: bash -c 'if [ -z "$$(ls -A /var/lib/cassandra/)" ] ; then sleep 120; fi && /docker-entrypoint.sh cassandra -f'
+        networks:
+            - dcx-internal
+        volumes:
+            - ${VOLUME_MNT}/n3data:/var/lib/cassandra
+        environment:
+            - CASSANDRA_CLUSTER_NAME=${CLUSTER_NAME}
+            - CASSANDRA_SEEDS=DC1N1
+            - MAX_HEAP_SIZE=${MAX_HEAP_SIZE} 
+            - HEAP_NEWSIZE=${HEAP_NEWSIZE}
+        depends_on:
+            - DC1N1
+        ports:
+            - 7000
+            - 7001
+            - 7199
+            - 9042
+            - 9160
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000    
+        deploy:
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+            window: 120s
+    # A web based interface for managing your docker containers.
+    portainer:
+        image: portainer/portainer
+        command: --templates http://templates/templates.json
+        networks:
+            - dcx-internal
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ${VOLUME_MNT}/portainer-data:/data
+        # access using http://localhost:10001
+        ports:
+            - "10001:9000"
+        deploy:
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+            window: 120s
+                
+networks:
+  dcx-internal:
+#    external:
+#       name: cassandra-net
